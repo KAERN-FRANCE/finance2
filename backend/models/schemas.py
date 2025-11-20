@@ -81,6 +81,7 @@ class DocumentResponse(BaseModel):
     status: DocumentStatus
     metadata: Optional[DocumentMetadata] = None
     error_message: Optional[str] = None
+    problematiques: List[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

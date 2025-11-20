@@ -17,9 +17,12 @@ const api = axios.create({
 
 // Documents
 export const documentsApi = {
-  upload: async (file: File): Promise<Document> => {
+  upload: async (file: File, problematiques: string[] = []): Promise<Document> => {
     const formData = new FormData()
     formData.append('file', file)
+    if (problematiques.length > 0) {
+      formData.append('problematiques', JSON.stringify(problematiques))
+    }
     const { data } = await api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

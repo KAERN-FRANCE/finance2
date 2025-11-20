@@ -1,11 +1,12 @@
 """
 API routes for document management.
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
-from typing import List
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Form
+from typing import List, Optional
 from pathlib import Path
 import shutil
 from sqlalchemy.orm import Session
+import json
 
 from backend.models.database import get_db, DocumentModel
 from backend.models.schemas import (
@@ -66,10 +67,16 @@ async def process_document_background(
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    problematiques: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
     Upload a document for processing and indexing.
+
+    Args:
+        file: Document file to upload
+        problematiques: JSON array of problématiques (optional)
+        db: Database session
     """
     try:
         # Validate file type
@@ -92,12 +99,24 @@ async def upload_document(
         # Sanitize filename
         safe_filename = sanitize_filename(file.filename)
 
+        # Parse problematiques
+        problematiques_list = []
+        if problematiques:
+            try:
+                problematiques_list = json.loads(problematiques) if isinstance(problematiques, str) else problematiques
+                if not isinstance(problematiques_list, list):
+                    problematiques_list = [problematiques_list]
+            except json.JSONDecodeError:
+                # If not JSON, treat as single problematique
+                problematiques_list = [problematiques] if problematiques.strip() else []
+
         # Create document record
         doc = DocumentModel(
             filename=safe_filename,
             file_type=file_type,
             size_bytes=0,  # Will update after saving
-            status=DocumentStatus.UPLOADING
+            status=DocumentStatus.UPLOADING,
+            problematiques=problematiques_list
         )
 
         db.add(doc)

@@ -30,6 +30,7 @@ class DocumentModel(Base):
     status = Column(Enum(DocumentStatus), default=DocumentStatus.UPLOADING)
     metadata = Column(JSON, default=dict)
     error_message = Column(Text, nullable=True)
+    problematiques = Column(JSON, default=list)  # Liste des problématiques liées au document
 
     # Vector store reference
     vector_store_id = Column(String, nullable=True)

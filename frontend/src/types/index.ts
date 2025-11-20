@@ -9,6 +9,7 @@ export interface Document {
   status: 'uploading' | 'processing' | 'indexed' | 'error'
   metadata?: any
   error_message?: string
+  problematiques?: string[]
 }
 
 export interface DocumentStats {
