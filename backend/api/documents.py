@@ -16,8 +16,19 @@ from backend.models.schemas import (
 from backend.config import settings
 from backend.utils.logger import log
 from backend.utils.helpers import sanitize_filename
-from backend.services.document_processor import get_document_processor
-from backend.services.vector_store import get_vector_store
+
+# Try to import full processor, fallback to simple processor
+try:
+    from backend.services.document_processor import get_document_processor
+    from backend.services.vector_store import get_vector_store
+    USE_FULL_PROCESSOR = True
+    log.info("Full AI processor available")
+except ImportError as e:
+    log.warning(f"Full processor not available ({e}), using simple processor")
+    USE_FULL_PROCESSOR = False
+
+# Always import simple processor as fallback
+from backend.services.simple_document_processor import get_simple_document_processor
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -31,7 +42,17 @@ async def process_document_background(
 ):
     """Background task for processing documents."""
     try:
-        processor = get_document_processor()
+        # Use simple processor by default, or full processor if available
+        if USE_FULL_PROCESSOR:
+            try:
+                processor = get_document_processor()
+                log.info(f"Using FULL processor for {filename}")
+            except Exception as e:
+                log.warning(f"Full processor failed to initialize, using simple: {e}")
+                processor = get_simple_document_processor()
+        else:
+            processor = get_simple_document_processor()
+            log.info(f"Using SIMPLE processor for {filename}")
 
         # Process the document
         result = await processor.process_document(
@@ -217,9 +238,16 @@ async def get_documents_stats(db: Session = Depends(get_db)):
             typ = doc.file_type.value
             by_type[typ] = by_type.get(typ, 0) + 1
 
-        # Get vector store stats
-        vector_store = get_vector_store()
-        vector_stats = vector_store.get_stats()
+        # Get vector store stats (if available)
+        total_chunks = 0
+        if USE_FULL_PROCESSOR:
+            try:
+                vector_store = get_vector_store()
+                vector_stats = vector_store.get_stats()
+                total_chunks = vector_stats.get("total_chunks", 0)
+            except Exception as e:
+                log.warning(f"Vector store not available: {e}")
+                total_chunks = 0
 
         # Last updated
         last_updated = None
@@ -231,7 +259,7 @@ async def get_documents_stats(db: Session = Depends(get_db)):
             total_size_mb=round(total_size_mb, 2),
             documents_by_category=by_category,
             documents_by_type=by_type,
-            total_chunks=vector_stats.get("total_chunks", 0),
+            total_chunks=total_chunks,
             last_updated=last_updated
         )
 
@@ -271,9 +299,13 @@ async def delete_document(document_id: str, db: Session = Depends(get_db)):
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Delete from vector store
-        vector_store = get_vector_store()
-        vector_store.delete_document(document_id)
+        # Delete from vector store (if available)
+        if USE_FULL_PROCESSOR:
+            try:
+                vector_store = get_vector_store()
+                vector_store.delete_document(document_id)
+            except Exception as e:
+                log.warning(f"Could not delete from vector store: {e}")
 
         # Delete file
         upload_dir = Path(settings.upload_dir)
