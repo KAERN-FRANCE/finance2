@@ -40,5 +40,5 @@ markdown2==2.4.12
 weasyprint==60.2
 
 # Testing (optional for MVP)
-pytest==8.0.0
+pytest>=7.0.0,<8.0.0
 pytest-asyncio==0.23.4
